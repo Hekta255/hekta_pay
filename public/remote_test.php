@@ -7,6 +7,20 @@ session_start();
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('X-Robots-Tag: noindex, nofollow, noarchive');
 
+$autoloadCandidates = [
+    __DIR__ . '/src/autoload.php',
+    __DIR__ . '/../src/autoload.php',
+];
+foreach ($autoloadCandidates as $autoload) {
+    if (is_file($autoload)) {
+        require_once $autoload;
+        break;
+    }
+}
+if (class_exists('HektaPay\\Database\\Connection')) {
+    \HektaPay\Database\Connection::loadEnvironment();
+}
+
 $configuredPassword = (string) (getenv('HEKTA_PAY_TEST_UI_PASSWORD') ?: '');
 if ($configuredPassword === '') {
     http_response_code(404);
@@ -83,9 +97,65 @@ if (!isset($_SESSION['authenticated'])) {
         }
         $loginError = 'Invalid test UI password.';
     }
-    ?>
-    <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Hekta Pay Test Login</title><style>body{font-family:system-ui;background:#08131f;color:#eef5ff;display:grid;place-items:center;min-height:100vh;margin:0}.box{width:min(420px,calc(100% - 32px));background:#102235;padding:28px;border:1px solid #28425b;border-radius:14px}input,button{width:100%;padding:12px;margin-top:10px;border-radius:8px;border:1px solid #42627f;box-sizing:border-box}button{background:#42d3a4;color:#06131c;font-weight:700;cursor:pointer}.error{color:#ff8d8d}</style></head><body><main class="box"><h1>Hekta Pay Test UI</h1><p>Restricted backend diagnostics.</p><?= $loginError ? '<p class="error">' . h($loginError) . '</p>' : '' ?><form method="post"><label>Test UI password<input type="password" name="password" required autofocus></label><button type="submit">Open diagnostics</button></form></main></body></html>
-    <?php
+?>
+    <!doctype html>
+    <html lang="en">
+
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width,initial-scale=1">
+        <title>Hekta Pay Test Login</title>
+        <style>
+            body {
+                font-family: system-ui;
+                background: #08131f;
+                color: #eef5ff;
+                display: grid;
+                place-items: center;
+                min-height: 100vh;
+                margin: 0
+            }
+
+            .box {
+                width: min(420px, calc(100% - 32px));
+                background: #102235;
+                padding: 28px;
+                border: 1px solid #28425b;
+                border-radius: 14px
+            }
+
+            input,
+            button {
+                width: 100%;
+                padding: 12px;
+                margin-top: 10px;
+                border-radius: 8px;
+                border: 1px solid #42627f;
+                box-sizing: border-box
+            }
+
+            button {
+                background: #42d3a4;
+                color: #06131c;
+                font-weight: 700;
+                cursor: pointer
+            }
+
+            .error {
+                color: #ff8d8d
+            }
+        </style>
+    </head>
+
+    <body>
+        <main class="box">
+            <h1>Hekta Pay Test UI</h1>
+            <p>Restricted backend diagnostics.</p><?= $loginError ? '<p class="error">' . h($loginError) . '</p>' : '' ?><form method="post"><label>Test UI password<input type="password" name="password" required autofocus></label><button type="submit">Open diagnostics</button></form>
+        </main>
+    </body>
+
+    </html>
+<?php
     exit;
 }
 
@@ -178,4 +248,188 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['check_invoice']) && $
 $passed = count(array_filter($results, static fn(array $result): bool => $result['ok']));
 $failed = count($results) - $passed;
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Hekta Pay Remote Test UI</title><style>:root{--bg:#08131f;--panel:#102235;--line:#28425b;--text:#eef5ff;--muted:#a8bfd4;--ok:#42d3a4;--bad:#ff7f7f;--accent:#68b6ff}*{box-sizing:border-box}body{margin:0;padding:24px;background:linear-gradient(145deg,#08131f,#102c3e);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,sans-serif}.shell{max-width:1050px;margin:auto}.panel{background:rgba(16,34,53,.96);border:1px solid var(--line);border-radius:16px;padding:22px;margin-bottom:18px}h1{margin-top:0}h2{font-size:1.1rem}.muted{color:var(--muted)}button,input{font:inherit;padding:11px 13px;border-radius:8px;border:1px solid #42627f}button{background:var(--accent);border:0;color:#07131f;font-weight:700;cursor:pointer;margin:5px 5px 5px 0}input{background:#091725;color:var(--text);min-width:320px}.danger{background:#704047;color:#fff}.summary{display:flex;gap:12px;flex-wrap:wrap}.pill{padding:8px 12px;border-radius:999px;background:#1e3b50}.ok{color:var(--ok)}.bad{color:var(--bad)}details{margin-top:10px}pre{white-space:pre-wrap;overflow:auto;background:#091725;padding:14px;border-radius:8px;color:#cfe5f6}.result{border-top:1px solid var(--line);padding:14px 0}.result:first-child{border-top:0}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}@media(max-width:600px){body{padding:12px}input{min-width:100%;width:100%}}</style></head><body><main class="shell"><section class="panel"><div class="row"><div style="flex:1"><h1>Hekta Pay Remote Test UI</h1><p class="muted">Protected backend diagnostics for pay.sebuleni.com. No app or real payment is required for the safe suite.</p></div><form method="post"><button class="danger" name="logout" value="1">Lock UI</button></form></div><div class="summary"><span class="pill">Base: <?= h($baseUrl) ?></span><span class="pill">App: <?= h($appId) ?></span><span class="pill">Passed: <b class="ok"><?= $passed ?></b></span><span class="pill">Failed: <b class="bad"><?= $failed ?></b></span></div></section><section class="panel"><h2>Safe backend diagnostics</h2><p class="muted">Checks PHP bootstrap, database connection, required tables, NafDex registration, webhook signing, and unauthenticated API rejection.</p><form method="post"><button name="run_safe_tests" value="1">Run safe suite</button></form></section><section class="panel"><h2>Optional Pesapal sandbox initialization</h2><p class="muted">Creates a small sandbox invoice and returns a payment URL. It does not complete or charge a payment unless you open the URL and finish the sandbox flow.</p><form method="post"><button name="run_gateway_test" value="1">Initialize sandbox invoice</button></form></section><section class="panel"><h2>Check an invoice</h2><form method="post"><div class="row"><input name="invoice_id" value="<?= h($invoiceId) ?>" placeholder="Invoice UUID" required><button name="check_invoice" value="1">Check status</button></div></form></section><?php if ($results): ?><section class="panel"><h2>Results</h2><?php foreach ($results as $result): ?><article class="result"><strong class="<?= $result['ok'] ? 'ok' : 'bad' ?>"><?= $result['ok'] ? 'PASS' : 'FAIL' ?></strong> <?= h($result['name']) ?><div class="muted"><?= h($result['detail']) ?></div><?php if ($result['data'] !== null): ?><details><summary>Response details</summary><pre><?= h(jsonPretty($result['data'])) ?></pre></details><?php endif; ?></article><?php endforeach; ?></section><?php endif; ?><section class="panel"><p class="muted">Never leave this tool enabled without a strong password. Disable it by removing <code>HEKTA_PAY_TEST_UI_PASSWORD</code> or removing this file after backend validation.</p></section></main></body></html>
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Hekta Pay Remote Test UI</title>
+    <style>
+        :root {
+            --bg: #08131f;
+            --panel: #102235;
+            --line: #28425b;
+            --text: #eef5ff;
+            --muted: #a8bfd4;
+            --ok: #42d3a4;
+            --bad: #ff7f7f;
+            --accent: #68b6ff
+        }
+
+        * {
+            box-sizing: border-box
+        }
+
+        body {
+            margin: 0;
+            padding: 24px;
+            background: linear-gradient(145deg, #08131f, #102c3e);
+            color: var(--text);
+            font-family: system-ui, -apple-system, Segoe UI, sans-serif
+        }
+
+        .shell {
+            max-width: 1050px;
+            margin: auto
+        }
+
+        .panel {
+            background: rgba(16, 34, 53, .96);
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            padding: 22px;
+            margin-bottom: 18px
+        }
+
+        h1 {
+            margin-top: 0
+        }
+
+        h2 {
+            font-size: 1.1rem
+        }
+
+        .muted {
+            color: var(--muted)
+        }
+
+        button,
+        input {
+            font: inherit;
+            padding: 11px 13px;
+            border-radius: 8px;
+            border: 1px solid #42627f
+        }
+
+        button {
+            background: var(--accent);
+            border: 0;
+            color: #07131f;
+            font-weight: 700;
+            cursor: pointer;
+            margin: 5px 5px 5px 0
+        }
+
+        input {
+            background: #091725;
+            color: var(--text);
+            min-width: 320px
+        }
+
+        .danger {
+            background: #704047;
+            color: #fff
+        }
+
+        .summary {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap
+        }
+
+        .pill {
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: #1e3b50
+        }
+
+        .ok {
+            color: var(--ok)
+        }
+
+        .bad {
+            color: var(--bad)
+        }
+
+        details {
+            margin-top: 10px
+        }
+
+        pre {
+            white-space: pre-wrap;
+            overflow: auto;
+            background: #091725;
+            padding: 14px;
+            border-radius: 8px;
+            color: #cfe5f6
+        }
+
+        .result {
+            border-top: 1px solid var(--line);
+            padding: 14px 0
+        }
+
+        .result:first-child {
+            border-top: 0
+        }
+
+        .row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center
+        }
+
+        @media(max-width:600px) {
+            body {
+                padding: 12px
+            }
+
+            input {
+                min-width: 100%;
+                width: 100%
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <main class="shell">
+        <section class="panel">
+            <div class="row">
+                <div style="flex:1">
+                    <h1>Hekta Pay Remote Test UI</h1>
+                    <p class="muted">Protected backend diagnostics for pay.sebuleni.com. No app or real payment is required for the safe suite.</p>
+                </div>
+                <form method="post"><button class="danger" name="logout" value="1">Lock UI</button></form>
+            </div>
+            <div class="summary"><span class="pill">Base: <?= h($baseUrl) ?></span><span class="pill">App: <?= h($appId) ?></span><span class="pill">Passed: <b class="ok"><?= $passed ?></b></span><span class="pill">Failed: <b class="bad"><?= $failed ?></b></span></div>
+        </section>
+        <section class="panel">
+            <h2>Safe backend diagnostics</h2>
+            <p class="muted">Checks PHP bootstrap, database connection, required tables, NafDex registration, webhook signing, and unauthenticated API rejection.</p>
+            <form method="post"><button name="run_safe_tests" value="1">Run safe suite</button></form>
+        </section>
+        <section class="panel">
+            <h2>Optional Pesapal sandbox initialization</h2>
+            <p class="muted">Creates a small sandbox invoice and returns a payment URL. It does not complete or charge a payment unless you open the URL and finish the sandbox flow.</p>
+            <form method="post"><button name="run_gateway_test" value="1">Initialize sandbox invoice</button></form>
+        </section>
+        <section class="panel">
+            <h2>Check an invoice</h2>
+            <form method="post">
+                <div class="row"><input name="invoice_id" value="<?= h($invoiceId) ?>" placeholder="Invoice UUID" required><button name="check_invoice" value="1">Check status</button></div>
+            </form>
+        </section><?php if ($results): ?><section class="panel">
+                <h2>Results</h2><?php foreach ($results as $result): ?><article class="result"><strong class="<?= $result['ok'] ? 'ok' : 'bad' ?>"><?= $result['ok'] ? 'PASS' : 'FAIL' ?></strong> <?= h($result['name']) ?><div class="muted"><?= h($result['detail']) ?></div><?php if ($result['data'] !== null): ?><details>
+                                <summary>Response details</summary>
+                                <pre><?= h(jsonPretty($result['data'])) ?></pre>
+                            </details><?php endif; ?></article><?php endforeach; ?>
+            </section><?php endif; ?><section class="panel">
+            <p class="muted">Never leave this tool enabled without a strong password. Disable it by removing <code>HEKTA_PAY_TEST_UI_PASSWORD</code> or removing this file after backend validation.</p>
+        </section>
+    </main>
+</body>
+
+</html>
