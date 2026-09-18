@@ -1,0 +1,84 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+/build/
+
+# Environment Configuration - CRITICAL: Never commit .env files
+.env
+.env.local
+.env.development.local
+.env.staging.local
+.env.production.local
+# Keep .env.example and .env.staging in version control as templates
+!.env.example
+.env.backup
+vendor/
+logs/*.txt
+node_modules/
+.DS_Store
+
+# Backend environment files
+lib/backend/.env
+lib/backend/.env.local
+lib/backend/.env.development.local
+lib/backend/.env.staging.local
+lib/backend/.env.production.local
+!lib/backend/.env.example
+
+# Environment Configuration - CRITICAL: Never commit .env files
+.env
+.env.*
+!.env.example
+
+# Backend environment files
+lib/backend/.env
+lib/backend/.env.*
+
+# Secrets and credentials
+*.key
+*.pem
+secrets.json
+credentials.json
+.env.example
