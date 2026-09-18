@@ -39,6 +39,7 @@ jobs:
           set -euo pipefail
           test -f public/index.php
           test -f public/.htaccess
+          test -f public/remote_test.php
           test -f src/autoload.php
           test -f src/Database/Connection.php
           test -f src/Payment/PaymentOrchestrator.php
@@ -53,6 +54,7 @@ jobs:
           cp -R public/. .deploy-layout/
           cp -R src/. .deploy-layout/src/
           test -f .deploy-layout/index.php
+          test -f .deploy-layout/remote_test.php
           test -f .deploy-layout/src/autoload.php
           php -l .deploy-layout/index.php
           rm -rf .deploy-layout

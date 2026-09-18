@@ -36,6 +36,23 @@ The upload is intentionally split:
 
 Database migrations and runtime environment variables are never uploaded automatically. Configure `DB_*`, `PESAPAL_*`, and the Hekta Pay application secrets on the server, then run the migration from the server or database host. The workflow verifies `https://pay.sebuleni.com/health` after upload.
 
+## Remote backend test UI
+
+The deployed backend includes a protected diagnostic page:
+
+```text
+https://pay.sebuleni.com/remote_test.php
+```
+
+It returns `404` unless the server has `HEKTA_PAY_TEST_UI_PASSWORD` configured. Set these values server-side only:
+
+- `HEKTA_PAY_TEST_UI_PASSWORD`: strong password for the browser test page.
+- `TEST_APP_ID`: normally `com.hekta.nafdex`.
+- `TEST_APP_SECRET`: NafDex Hekta Pay app secret used by authenticated checks.
+- `TEST_CUSTOMER_EMAIL`: optional sandbox customer email.
+
+Run the safe suite first. It checks PHP bootstrap, MySQL, required tables, NafDex app registration, webhook signing, and unauthenticated API rejection. Use the separate sandbox action only after Pesapal sandbox credentials and IPN configuration are ready. Remove `HEKTA_PAY_TEST_UI_PASSWORD` or delete `public/remote_test.php` after backend verification.
+
 Deployment trigger:
 
 ```powershell
