@@ -2,8 +2,31 @@
 
 declare(strict_types=1);
 
-$autoload = __DIR__ . '/../vendor/autoload.php';
-require_once is_file($autoload) ? $autoload : __DIR__ . '/../src/autoload.php';
+$autoloadCandidates = [
+    // Production FTP layout: public/index.php and src/ are siblings below the document root.
+    __DIR__ . '/vendor/autoload.php',
+    __DIR__ . '/src/autoload.php',
+    // Local layout: public/ and src/ are siblings in the repository.
+    __DIR__ . '/../vendor/autoload.php',
+    __DIR__ . '/../src/autoload.php',
+];
+
+$autoload = null;
+foreach ($autoloadCandidates as $candidate) {
+    if (is_file($candidate)) {
+        $autoload = $candidate;
+        break;
+    }
+}
+
+if ($autoload === null) {
+    http_response_code(500);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['success' => false, 'error' => ['code' => 'AUTOLOAD_NOT_FOUND', 'message' => 'Hekta Pay application source is not installed.']]);
+    exit;
+}
+
+require_once $autoload;
 
 use HektaPay\Database\Connection;
 use HektaPay\Payment\PaymentOrchestrator;

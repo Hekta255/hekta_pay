@@ -44,6 +44,19 @@ jobs:
           test -f src/Payment/PaymentOrchestrator.php
           test -f src/Services/WebhookDispatcher.php
 
+      - name: Validate production upload layout
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .deploy-layout
+          mkdir -p .deploy-layout/src
+          cp -R public/. .deploy-layout/
+          cp -R src/. .deploy-layout/src/
+          test -f .deploy-layout/index.php
+          test -f .deploy-layout/src/autoload.php
+          php -l .deploy-layout/index.php
+          rm -rf .deploy-layout
+
       - name: Check tracked files for environment secrets
         shell: bash
         run: |
@@ -82,7 +95,7 @@ jobs:
             **/.env*
             **/*.log
 
-      - name: Upload application source outside document root
+      - name: Upload protected application source directory
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}

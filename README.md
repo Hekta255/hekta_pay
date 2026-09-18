@@ -32,7 +32,7 @@ The workflow assumes the FTP account can see the `pay.sebuleni.com/` directory, 
 The upload is intentionally split:
 
 - `public/` -> `pay.sebuleni.com/` document root.
-- `src/` -> `pay.sebuleni.com/src/`, required by `public/index.php`.
+- `src/` -> `pay.sebuleni.com/src/`, required by `index.php` and protected by `.htaccess`.
 
 Database migrations and runtime environment variables are never uploaded automatically. Configure `DB_*`, `PESAPAL_*`, and the Hekta Pay application secrets on the server, then run the migration from the server or database host. The workflow verifies `https://pay.sebuleni.com/health` after upload.
 
