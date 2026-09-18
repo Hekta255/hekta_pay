@@ -51,6 +51,10 @@ function respond(array $body, int $status = 200): void
 }
 
 $path = trim(parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH), '/');
+if ($path === 'src' || strpos($path, 'src/') === 0) {
+    respond(['success' => false, 'error' => ['code' => 'FORBIDDEN', 'message' => 'Application source paths are not public.']], 403);
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && $path === 'health') {
     respond([
         'success' => true,
