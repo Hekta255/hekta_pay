@@ -48,17 +48,21 @@ function respond(array $body, int $status = 200): void
     exit;
 }
 
+$path = trim(parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH), '/');
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && $path === 'health') {
+    respond([
+        'success' => true,
+        'service' => 'hekta-pay',
+        'environment' => getenv('APP_ENV') ?: 'production',
+    ]);
+}
+
 try {
     $db = Connection::create();
     $orchestrator = new PaymentOrchestrator($db, new WebhookDispatcher($db));
-    $path = trim(parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH), '/');
     $input = json_decode(file_get_contents('php://input') ?: '{}', true) ?: [];
     $appId = (string) ($_SERVER['HTTP_X_APP_ID'] ?? '');
     $secret = (string) ($_SERVER['HTTP_X_APP_SECRET'] ?? '');
-
-    if ($_SERVER['REQUEST_METHOD'] === 'GET' && $path === 'health') {
-        respond(['success' => true, 'service' => 'hekta-pay', 'environment' => getenv('APP_ENV') ?: 'production']);
-    }
 
     if (preg_match('#^api/ipn/([^/]+)$#', $path, $matches)) {
         respond($orchestrator->processIpn($matches[1], $input));
