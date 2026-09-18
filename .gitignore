@@ -55,6 +55,7 @@ app.*.map.json
 !.env.example
 .env.backup
 vendor/
+.ftp-deploy-sync-state.json
 logs/*.txt
 node_modules/
 .DS_Store

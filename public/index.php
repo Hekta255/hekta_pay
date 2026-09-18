@@ -13,7 +13,10 @@ header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Headers: Content-Type, X-App-ID, X-App-Secret');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(204);
+    exit;
+}
 
 function respond(array $body, int $status = 200): void
 {
@@ -30,12 +33,20 @@ try {
     $appId = (string) ($_SERVER['HTTP_X_APP_ID'] ?? '');
     $secret = (string) ($_SERVER['HTTP_X_APP_SECRET'] ?? '');
 
+    if ($_SERVER['REQUEST_METHOD'] === 'GET' && $path === 'health') {
+        respond(['success' => true, 'service' => 'hekta-pay', 'environment' => getenv('APP_ENV') ?: 'production']);
+    }
+
     if (preg_match('#^api/ipn/([^/]+)$#', $path, $matches)) {
         respond($orchestrator->processIpn($matches[1], $input));
     }
-    if ($appId === '' || $secret === '') { respond(['success' => false, 'error' => ['code' => 'APP_NOT_AUTHORIZED', 'message' => 'App credentials are required.']], 401); }
+    if ($appId === '' || $secret === '') {
+        respond(['success' => false, 'error' => ['code' => 'APP_NOT_AUTHORIZED', 'message' => 'App credentials are required.']], 401);
+    }
     $credential = $orchestrator->credential($appId);
-    if (!$credential || !password_verify($secret, $credential['app_secret_hash'])) { respond(['success' => false, 'error' => ['code' => 'APP_NOT_AUTHORIZED', 'message' => 'Invalid app credentials.']], 401); }
+    if (!$credential || !password_verify($secret, $credential['app_secret_hash'])) {
+        respond(['success' => false, 'error' => ['code' => 'APP_NOT_AUTHORIZED', 'message' => 'Invalid app credentials.']], 401);
+    }
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($path === 'api/payment/initialize' || $path === 'api/v1/api/payment/initialize')) {
         respond($orchestrator->initialize($appId, $input));

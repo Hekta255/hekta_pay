@@ -11,9 +11,7 @@ use RuntimeException;
 
 final class PaymentOrchestrator
 {
-    public function __construct(private PDO $db, private WebhookDispatcher $webhooks)
-    {
-    }
+    public function __construct(private PDO $db, private WebhookDispatcher $webhooks) {}
 
     public function initialize(string $appId, array $data): array
     {

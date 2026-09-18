@@ -1,0 +1,13 @@
+RewriteEngine On
+
+# Keep the application source directory outside the public route surface.
+
+RewriteRule ^src(?:/|$) - [F,L]
+
+# Route API and health requests through the front controller.
+
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.php [QSA,L]
+
+Options -Indexes
