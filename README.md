@@ -77,6 +77,8 @@ chmod 600 /home/vijiweni/pay.sebuleni.com/.env
 
 The application now loads this file automatically. Hosting-level environment variables take precedence over values in the file.
 
+Environment aliases are supported: `test`, `testing`, and `sandbox` select the `*_TEST` Pesapal settings; `production`, `prod`, and `live` select the `*_PROD` settings. Pesapal URLs may be configured with or without the trailing `/api/`; Hekta Pay normalizes them.
+
 After creating it, run the Hekta Pay migration against that database and confirm the `hekta_app_credentials` row exists. The previous error `Access denied for user 'root'@'localhost' (using password: NO)` means this file or the hosting environment variables were missing.
 
 ## Remote backend test UI

@@ -131,13 +131,27 @@ final class PaymentOrchestrator
         if ($gateway !== 'pesapal') {
             throw new RuntimeException('Unsupported gateway: ' . $gateway);
         }
-        $prefix = strtolower($environment) === 'production' ? 'PROD' : 'TEST';
+        $prefix = $this->isProductionEnvironment($environment) ? 'PROD' : 'TEST';
         $consumerKey = getenv('PESAPAL_CONSUMER_KEY') ?: getenv('PESAPAL_CONSUMER_KEY_' . $prefix) ?: '';
         $consumerSecret = getenv('PESAPAL_CONSUMER_SECRET') ?: getenv('PESAPAL_CONSUMER_SECRET_' . $prefix) ?: '';
-        $baseUrl = getenv('PESAPAL_BASE_URL_' . $prefix) ?: ($prefix === 'PROD' ? 'https://pay.pesapal.com/v3/api/' : 'https://cybqa.pesapal.com/pesapalv3/api/');
+        $baseUrl = $this->normalizePesapalBaseUrl(getenv('PESAPAL_BASE_URL_' . $prefix) ?: ($prefix === 'PROD' ? 'https://pay.pesapal.com/v3/api/' : 'https://cybqa.pesapal.com/pesapalv3/api/'));
         $ipnId = getenv('PESAPAL_IPN_ID_' . $prefix) ?: '';
 
         return new PesapalDriver($baseUrl, $consumerKey, $consumerSecret, $ipnId);
+    }
+
+    private function isProductionEnvironment(string $environment): bool
+    {
+        return in_array(strtolower(trim($environment)), ['production', 'prod', 'live'], true);
+    }
+
+    private function normalizePesapalBaseUrl(string $baseUrl): string
+    {
+        $baseUrl = rtrim(trim($baseUrl), '/') . '/';
+        if (!preg_match('#/api/$#i', $baseUrl)) {
+            $baseUrl .= 'api/';
+        }
+        return $baseUrl;
     }
 
     public function credential(string $appId): ?array
