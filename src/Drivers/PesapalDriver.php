@@ -26,6 +26,10 @@ final class PesapalDriver implements PaymentDriverInterface
 
     public function createOrder(array $data): array
     {
+        if ($this->ipnId === '') {
+            throw new RuntimeException('Pesapal IPN ID is not configured for this environment.');
+        }
+
         $response = $this->request('Transactions/SubmitOrderRequest', 'POST', [
             'id' => $data['invoice_id'],
             'currency' => $data['currency'],
@@ -39,7 +43,10 @@ final class PesapalDriver implements PaymentDriverInterface
         ]);
 
         if (empty($response['order_tracking_id']) || empty($response['redirect_url'])) {
-            throw new RuntimeException('Pesapal did not return an order tracking ID and redirect URL.');
+            $safeError = $response['error'] ?? $response['message'] ?? null;
+            $detail = is_string($safeError) ? ': ' . $safeError : (is_array($safeError) ? ': ' . ($safeError['message'] ?? json_encode($safeError)) : '');
+            $status = isset($response['status']) ? ' (status ' . $response['status'] . ')' : '';
+            throw new RuntimeException('Pesapal rejected the order' . $status . $detail . '.');
         }
 
         return [

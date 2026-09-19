@@ -33,12 +33,14 @@ final class PaymentOrchestrator
 
         $driver = $this->driver($gateway, (string) ($data['environment'] ?? getenv('APP_ENV') ?: 'testing'));
         try {
+            $environment = (string) ($data['environment'] ?? getenv('APP_ENV') ?: 'testing');
+            $prefix = $this->isProductionEnvironment($environment) ? 'PROD' : 'TEST';
             $order = $driver->createOrder([
                 'invoice_id' => $invoiceId,
                 'amount' => $amount,
                 'currency' => $currency,
                 'description' => (string) ($data['description'] ?? 'Hekta payment'),
-                'callback_url' => $data['callback_url'] ?? null,
+                'callback_url' => $data['callback_url'] ?? getenv('PESAPAL_CALLBACK_URL_' . $prefix) ?: getenv('PESAPAL_CALLBACK_URL') ?: 'https://pay.sebuleni.com/payment-callback',
                 'customer_email' => $data['customer']['email'] ?? null,
                 'billing_address' => $data['billing_address'] ?? null,
             ]);
@@ -132,9 +134,9 @@ final class PaymentOrchestrator
             throw new RuntimeException('Unsupported gateway: ' . $gateway);
         }
         $prefix = $this->isProductionEnvironment($environment) ? 'PROD' : 'TEST';
-        $consumerKey = getenv('PESAPAL_CONSUMER_KEY') ?: getenv('PESAPAL_CONSUMER_KEY_' . $prefix) ?: '';
-        $consumerSecret = getenv('PESAPAL_CONSUMER_SECRET') ?: getenv('PESAPAL_CONSUMER_SECRET_' . $prefix) ?: '';
-        $baseUrl = $this->normalizePesapalBaseUrl(getenv('PESAPAL_BASE_URL_' . $prefix) ?: ($prefix === 'PROD' ? 'https://pay.pesapal.com/v3/api/' : 'https://cybqa.pesapal.com/pesapalv3/api/'));
+        $consumerKey = getenv('PESAPAL_CONSUMER_KEY_' . $prefix) ?: getenv('PESAPAL_CONSUMER_KEY') ?: '';
+        $consumerSecret = getenv('PESAPAL_CONSUMER_SECRET_' . $prefix) ?: getenv('PESAPAL_CONSUMER_SECRET') ?: '';
+        $baseUrl = $this->normalizePesapalBaseUrl(getenv('PESAPAL_BASE_URL_' . $prefix) ?: ($prefix === 'PROD' ? 'https://pay.pesapal.com/v3' : 'https://cybqa.pesapal.com/pesapalv3/api/'));
         $ipnId = getenv('PESAPAL_IPN_ID_' . $prefix) ?: '';
 
         return new PesapalDriver($baseUrl, $consumerKey, $consumerSecret, $ipnId);

@@ -63,6 +63,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && $path === 'health') {
     ]);
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && $path === 'payment-callback') {
+    respond([
+        'success' => true,
+        'service' => 'hekta-pay',
+        'message' => 'Payment callback received. Verify the invoice status through the API.',
+        'order_tracking_id' => $_GET['OrderTrackingId'] ?? null,
+        'notification_type' => $_GET['OrderNotificationType'] ?? null,
+        'merchant_reference' => $_GET['OrderMerchantReference'] ?? null,
+    ]);
+}
+
 try {
     $db = Connection::create();
     $orchestrator = new PaymentOrchestrator($db, new WebhookDispatcher($db));
