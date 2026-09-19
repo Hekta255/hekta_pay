@@ -17,6 +17,16 @@ password_hash('your-secret', PASSWORD_DEFAULT)
 
 Payment API authentication uses `X-App-ID` and `X-App-Secret`. Gateway IPNs use `/api/ipn/{gateway}`. Outgoing app callbacks include `X-Hekta-Event-Id`, `X-Hekta-Timestamp`, and `X-Hekta-Signature`.
 
+### Webhook retry worker
+
+Failed webhook deliveries are stored in `hekta_webhook_retry_queue`. Run the worker every five minutes from the Hekta Pay project directory:
+
+```bash
+*/5 * * * * /usr/bin/php /home/vijiweni/pay.sebuleni.com/bin/process_webhook_retries.php >> /home/vijiweni/pay.sebuleni.com/webhook-retries.log 2>&1
+```
+
+The worker retries transport errors and non-2xx responses with bounded exponential backoff. Keep the PHP process configured with the same environment file used by the web application.
+
 ## Automatic deployment
 
 The workflow at `.github/workflows/deploy.yml` deploys `main` to `https://pay.sebuleni.com` through GitHub Actions and FTP.

@@ -73,16 +73,33 @@ final class PaymentOrchestrator
 
     public function listInvoices(string $appId, string $tenantId, ?string $status = null, int $limit = 50, int $offset = 0): array
     {
+        $limit = max(1, min(100, $limit));
+        $offset = max(0, $offset);
+        $countSql = 'SELECT COUNT(*) FROM hekta_invoices WHERE app_id = ? AND tenant_id = ?';
+        $countParams = [$appId, $tenantId];
+        if ($status !== null && $status !== '') {
+            $countSql .= ' AND status = ?';
+            $countParams[] = $status;
+        }
+        $countStmt = $this->db->prepare($countSql);
+        $countStmt->execute($countParams);
+        $total = (int) $countStmt->fetchColumn();
+
         $sql = 'SELECT * FROM hekta_invoices WHERE app_id = ? AND tenant_id = ?';
         $params = [$appId, $tenantId];
         if ($status !== null && $status !== '') {
             $sql .= ' AND status = ?';
             $params[] = $status;
         }
-        $sql .= ' ORDER BY created_at DESC LIMIT ' . max(1, min(100, $limit)) . ' OFFSET ' . max(0, $offset);
+        $sql .= ' ORDER BY created_at DESC LIMIT ' . $limit . ' OFFSET ' . $offset;
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
-        return ['success' => true, 'invoices' => $stmt->fetchAll()];
+        return [
+            'success' => true,
+            'invoices' => $stmt->fetchAll(),
+            'total' => $total,
+            'has_more' => $offset + $limit < $total,
+        ];
     }
 
     public function processIpn(string $gateway, array $data): array
@@ -102,6 +119,62 @@ final class PaymentOrchestrator
         $status = $driver->mapStatus($gatewayStatus['status']);
         $this->completeStatus($invoice, $status, $gatewayStatus);
         return ['success' => true, 'status' => $status];
+    }
+
+    public function listTransactions(string $appId, string $tenantId, int $limit = 50, int $offset = 0): array
+    {
+        $limit = max(1, min(100, $limit));
+        $offset = max(0, $offset);
+        $countStmt = $this->db->prepare('SELECT COUNT(*) FROM hekta_transactions WHERE app_id = ? AND tenant_id = ?');
+        $countStmt->execute([$appId, $tenantId]);
+        $total = (int) $countStmt->fetchColumn();
+        $stmt = $this->db->prepare('SELECT * FROM hekta_transactions WHERE app_id = ? AND tenant_id = ? ORDER BY created_at DESC LIMIT ' . $limit . ' OFFSET ' . $offset);
+        $stmt->execute([$appId, $tenantId]);
+        return [
+            'success' => true,
+            'transactions' => $stmt->fetchAll(),
+            'total' => $total,
+            'has_more' => $offset + $limit < $total,
+        ];
+    }
+
+    public function initializeExisting(string $appId, string $invoiceId): array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM hekta_invoices WHERE app_id = ? AND id = ? LIMIT 1');
+        $stmt->execute([$appId, $invoiceId]);
+        $invoice = $stmt->fetch();
+        if (!$invoice) {
+            throw new RuntimeException('Invoice not found.');
+        }
+        if (!in_array($invoice['status'], ['pending', 'initiated'], true)) {
+            throw new RuntimeException('Only pending or initiated invoices can be paid.');
+        }
+        $driver = $this->driver($invoice['gateway'], getenv('APP_ENV') ?: 'testing');
+        $order = $driver->createOrder([
+            'invoice_id' => $invoice['id'],
+            'amount' => (float) $invoice['amount'],
+            'currency' => $invoice['currency'],
+            'description' => 'Invoice payment',
+            'callback_url' => getenv('PESAPAL_CALLBACK_URL') ?: 'https://pay.sebuleni.com/payment-callback',
+            'customer_email' => null,
+            'billing_address' => null,
+        ]);
+        $this->db->prepare('UPDATE hekta_invoices SET status = "initiated", gateway_order_id = ?, payment_url = ? WHERE id = ?')->execute([$order['gateway_order_id'], $order['payment_url'], $invoice['id']]);
+        return [
+            'success' => true,
+            'invoice' => $this->findInvoice($appId, $invoice['id']),
+            'payment' => ['url' => $order['payment_url'], 'order_tracking_id' => $order['gateway_order_id']],
+        ];
+    }
+
+    public function cancelInvoice(string $appId, string $invoiceId): array
+    {
+        $stmt = $this->db->prepare('UPDATE hekta_invoices SET status = "cancelled" WHERE app_id = ? AND id = ? AND status IN ("pending", "initiated")');
+        $stmt->execute([$appId, $invoiceId]);
+        if ($stmt->rowCount() === 0) {
+            throw new RuntimeException('Invoice not found or cannot be cancelled.');
+        }
+        return ['success' => true, 'invoice' => $this->findInvoice($appId, $invoiceId)];
     }
 
     private function completeStatus(array $invoice, string $status, array $gatewayStatus): void

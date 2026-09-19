@@ -95,11 +95,20 @@ try {
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($path === 'api/payment/initialize' || $path === 'api/v1/api/payment/initialize')) {
         respond($orchestrator->initialize($appId, $input));
     }
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && preg_match('#^(?:api/v1/)?api/payment/([^/]+)/initialize$#', $path, $matches)) {
+        respond($orchestrator->initializeExisting($appId, $matches[1]));
+    }
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && preg_match('#^(?:api/v1/)?api/payment/([^/]+)/cancel$#', $path, $matches)) {
+        respond($orchestrator->cancelInvoice($appId, $matches[1]));
+    }
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && preg_match('#^(?:api/v1/)?api/payment/([^/]+)/status$#', $path, $matches)) {
         respond($orchestrator->status($appId, $matches[1]));
     }
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && preg_match('#^(?:api/v1/)?api/invoices$#', $path)) {
         respond($orchestrator->listInvoices($appId, (string) ($_GET['tenant_id'] ?? ''), $_GET['status'] ?? null, (int) ($_GET['limit'] ?? 50), (int) ($_GET['offset'] ?? 0)));
+    }
+    if ($_SERVER['REQUEST_METHOD'] === 'GET' && preg_match('#^(?:api/v1/)?api/transactions$#', $path)) {
+        respond($orchestrator->listTransactions($appId, (string) ($_GET['tenant_id'] ?? ''), (int) ($_GET['limit'] ?? 50), (int) ($_GET['offset'] ?? 0)));
     }
     respond(['success' => false, 'error' => ['code' => 'NOT_FOUND', 'message' => 'Route not found.']], 404);
 } catch (Throwable $error) {

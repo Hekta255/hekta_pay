@@ -30,7 +30,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          find public src database/migrations -type f -name '*.php' -print0 \
+          find public src bin database/migrations -type f -name '*.php' -print0 \
             | xargs -0 -n1 php -l
 
       - name: Validate required deployment files
@@ -44,6 +44,7 @@ jobs:
           test -f src/Database/Connection.php
           test -f src/Payment/PaymentOrchestrator.php
           test -f src/Services/WebhookDispatcher.php
+          test -f bin/process_webhook_retries.php
 
       - name: Validate production upload layout
         shell: bash
@@ -107,6 +108,24 @@ jobs:
           port: 21
           local-dir: ./src/
           server-dir: ./pay.sebuleni.com/src/
+          dangerous-clean-slate: false
+          log-level: standard
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/.env*
+            **/*.log
+
+      - name: Upload protected worker directory
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftp
+          port: 21
+          local-dir: ./bin/
+          server-dir: ./pay.sebuleni.com/bin/
           dangerous-clean-slate: false
           log-level: standard
           exclude: |
