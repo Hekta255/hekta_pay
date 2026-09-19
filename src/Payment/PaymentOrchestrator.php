@@ -132,7 +132,12 @@ final class PaymentOrchestrator
             throw new RuntimeException('Unsupported gateway: ' . $gateway);
         }
         $prefix = strtolower($environment) === 'production' ? 'PROD' : 'TEST';
-        return new PesapalDriver(getenv('PESAPAL_BASE_URL_' . $prefix) ?: ($prefix === 'PROD' ? 'https://pay.pesapal.com/v3/api/' : 'https://cybqa.pesapal.com/pesapalv3/api/'), getenv('PESAPAL_CONSUMER_KEY_' . $prefix) ?: '', getenv('PESAPAL_CONSUMER_SECRET_' . $prefix) ?: '', getenv('PESAPAL_IPN_ID_' . $prefix) ?: '');
+        $consumerKey = getenv('PESAPAL_CONSUMER_KEY') ?: getenv('PESAPAL_CONSUMER_KEY_' . $prefix) ?: '';
+        $consumerSecret = getenv('PESAPAL_CONSUMER_SECRET') ?: getenv('PESAPAL_CONSUMER_SECRET_' . $prefix) ?: '';
+        $baseUrl = getenv('PESAPAL_BASE_URL_' . $prefix) ?: ($prefix === 'PROD' ? 'https://pay.pesapal.com/v3/api/' : 'https://cybqa.pesapal.com/pesapalv3/api/');
+        $ipnId = getenv('PESAPAL_IPN_ID_' . $prefix) ?: '';
+
+        return new PesapalDriver($baseUrl, $consumerKey, $consumerSecret, $ipnId);
     }
 
     public function credential(string $appId): ?array

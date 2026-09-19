@@ -1,6 +1,7 @@
 RewriteEngine On
 
 # Never serve runtime configuration or hidden files.
+
 RewriteRule ^\.env(?:\.|$) - [F,L]
 RewriteRule (^|/)\. - [F,L]
 

@@ -55,9 +55,13 @@ DB_USER=YOUR_CPANEL_DATABASE_USER
 DB_PASS=YOUR_CPANEL_DATABASE_PASSWORD
 
 PESAPAL_BASE_URL_PROD=https://pay.pesapal.com/v3/api/
-PESAPAL_CONSUMER_KEY_PROD=YOUR_PRODUCTION_CONSUMER_KEY
-PESAPAL_CONSUMER_SECRET_PROD=YOUR_PRODUCTION_CONSUMER_SECRET
+PESAPAL_CONSUMER_KEY=YOUR_SHARED_PESAPAL_CONSUMER_KEY
+PESAPAL_CONSUMER_SECRET=YOUR_SHARED_PESAPAL_CONSUMER_SECRET
 PESAPAL_IPN_ID_PROD=YOUR_REGISTERED_IPN_ID
+
+# Sandbox uses the same Pesapal credentials; only the base URL and IPN ID differ.
+PESAPAL_BASE_URL_TEST=https://cybqa.pesapal.com/pesapalv3/api/
+PESAPAL_IPN_ID_TEST=YOUR_SANDBOX_REGISTERED_IPN_ID
 
 HEKTA_PAY_TEST_UI_PASSWORD=YOUR_STRONG_TEST_UI_PASSWORD
 TEST_APP_ID=com.hekta.nafdex
@@ -89,6 +93,7 @@ It returns `404` unless the server has `HEKTA_PAY_TEST_UI_PASSWORD` configured. 
 - `TEST_APP_ID`: normally `com.hekta.nafdex`.
 - `TEST_APP_SECRET`: NafDex Hekta Pay app secret used by authenticated checks.
 - `TEST_CUSTOMER_EMAIL`: optional sandbox customer email.
+- `TEST_GATEWAY_ENVIRONMENT`: use `testing` for the sandbox button; defaults to `testing`.
 
 Run the safe suite first. It checks PHP bootstrap, MySQL, required tables, NafDex app registration, webhook signing, and unauthenticated API rejection. Use the separate sandbox action only after Pesapal sandbox credentials and IPN configuration are ready. Remove `HEKTA_PAY_TEST_UI_PASSWORD` or delete `public/remote_test.php` after backend verification.
 

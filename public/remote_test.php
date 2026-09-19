@@ -219,6 +219,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['run_gateway_test'])) 
             'currency' => 'USD',
             'description' => 'Hekta Pay remote sandbox test',
             'gateway' => 'pesapal',
+            'environment' => getenv('TEST_GATEWAY_ENVIRONMENT') ?: 'testing',
             'metadata' => ['source' => 'hekta_pay_remote_test'],
             'customer' => ['email' => getenv('TEST_CUSTOMER_EMAIL') ?: 'remote-test@example.com'],
         ];

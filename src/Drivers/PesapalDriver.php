@@ -117,7 +117,11 @@ final class PesapalDriver implements PaymentDriverInterface
         curl_close($ch);
         $decoded = is_string($body) ? json_decode($body, true) : null;
         if ($body === false || $error !== '' || $status < 200 || $status >= 300 || !is_array($decoded) || empty($decoded['token'])) {
-            throw new RuntimeException('Pesapal authentication failed.');
+            $safeResponse = is_array($decoded)
+                ? ($decoded['error'] ?? $decoded['message'] ?? $decoded['error_description'] ?? null)
+                : null;
+            $detail = is_string($safeResponse) ? ': ' . $safeResponse : '';
+            throw new RuntimeException('Pesapal authentication failed (HTTP ' . $status . ')' . $detail . '.');
         }
         $this->token = (string) $decoded['token'];
         $this->tokenExpiresAt = time() + 240;
