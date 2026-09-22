@@ -237,6 +237,37 @@ final class PaymentOrchestrator
         return $credential ?: null;
     }
 
+    public function callbackDetails(?string $orderTrackingId, ?string $merchantReference): ?array
+    {
+        $orderTrackingId = trim((string) $orderTrackingId);
+        $merchantReference = trim((string) $merchantReference);
+        if ($orderTrackingId === '' && $merchantReference === '') {
+            return null;
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT i.*, c.app_name FROM hekta_invoices i '
+            . 'JOIN hekta_app_credentials c ON c.app_id = i.app_id '
+            . 'WHERE (i.gateway_order_id = ? OR i.id = ?) LIMIT 1'
+        );
+        $stmt->execute([$orderTrackingId, $merchantReference]);
+        $invoice = $stmt->fetch();
+        if (!$invoice) {
+            return null;
+        }
+
+        $metadata = is_string($invoice['metadata'])
+            ? (json_decode($invoice['metadata'], true) ?: [])
+            : (is_array($invoice['metadata']) ? $invoice['metadata'] : []);
+        return [
+            'invoice' => $invoice,
+            'app_name' => (string) $invoice['app_name'],
+            'return_url' => is_string($metadata['app_return_url'] ?? null)
+                ? $metadata['app_return_url']
+                : null,
+        ];
+    }
+
     private function findInvoice(string $appId, string $invoiceId): ?array
     {
         $stmt = $this->db->prepare('SELECT * FROM hekta_invoices WHERE app_id = ? AND id = ? LIMIT 1');
