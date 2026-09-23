@@ -44,6 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 function respond(array $body, int $status = 200): void
 {
+    header('Content-Type: application/json; charset=utf-8');
     http_response_code($status);
     echo json_encode($body);
     exit;

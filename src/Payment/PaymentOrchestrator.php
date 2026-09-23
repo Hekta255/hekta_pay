@@ -247,8 +247,8 @@ final class PaymentOrchestrator
 
         $stmt = $this->db->prepare(
             'SELECT i.*, c.app_name FROM hekta_invoices i '
-            . 'JOIN hekta_app_credentials c ON c.app_id = i.app_id '
-            . 'WHERE (i.gateway_order_id = ? OR i.id = ?) LIMIT 1'
+                . 'JOIN hekta_app_credentials c ON c.app_id = i.app_id '
+                . 'WHERE (i.gateway_order_id = ? OR i.id = ?) LIMIT 1'
         );
         $stmt->execute([$orderTrackingId, $merchantReference]);
         $invoice = $stmt->fetch();
