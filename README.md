@@ -92,6 +92,8 @@ The application now loads this file automatically. Hosting-level environment var
 
 Environment aliases are supported: `test`, `testing`, and `sandbox` select the `*_TEST` Pesapal settings; `production`, `prod`, and `live` select the `*_PROD` settings. Pesapal URLs may be configured with or without the trailing `/api/`; Hekta Pay normalizes them.
 
+Each consuming app sends its desired payment environment with the initialize request using the canonical values `test` or `prod`. Hekta Pay stores that value on the invoice and reuses it for gateway initialization, status checks, IPN processing, and retries. The app selects the environment; Hekta Pay remains responsible for the matching configured Pesapal credentials.
+
 After creating it, run the Hekta Pay migration against that database and confirm the `hekta_app_credentials` row exists. The previous error `Access denied for user 'root'@'localhost' (using password: NO)` means this file or the hosting environment variables were missing.
 
 ## Remote backend test UI

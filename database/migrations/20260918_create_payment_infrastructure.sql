@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS hekta_invoices (
     currency CHAR(3) NOT NULL DEFAULT 'USD',
     status ENUM('pending','initiated','completed','failed','cancelled') NOT NULL DEFAULT 'pending',
     gateway VARCHAR(50) NOT NULL,
+    environment VARCHAR(10) NOT NULL DEFAULT 'test',
     gateway_order_id VARCHAR(255) NULL,
     payment_url TEXT NULL,
     payment_method VARCHAR(100) NULL,

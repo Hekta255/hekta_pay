@@ -19,6 +19,9 @@ final class PaymentOrchestrator
         $amount = (float) ($data['amount'] ?? 0);
         $currency = strtoupper(trim((string) ($data['currency'] ?? 'USD')));
         $gateway = strtolower(trim((string) ($data['gateway'] ?? 'pesapal')));
+        $environment = $this->normalizeEnvironment(
+            (string) ($data['environment'] ?? getenv('APP_ENV') ?: 'test')
+        );
         if ($tenantId === '' || $amount <= 0 || !preg_match('/^[A-Z]{3}$/', $currency)) {
             throw new RuntimeException('tenant_id, a positive amount, and a valid currency are required.');
         }
@@ -28,13 +31,12 @@ final class PaymentOrchestrator
 
         $invoiceId = self::uuid();
         $metadata = isset($data['metadata']) ? json_encode($data['metadata'], JSON_THROW_ON_ERROR) : null;
-        $stmt = $this->db->prepare('INSERT INTO hekta_invoices (id, app_id, tenant_id, amount, currency, status, gateway, metadata, invoice_type, billing_period, subscription_term_months, due_date) VALUES (?, ?, ?, ?, ?, "pending", ?, ?, ?, ?, ?, ?)');
-        $stmt->execute([$invoiceId, $appId, $tenantId, $amount, $currency, $gateway, $metadata, $data['invoice_type'] ?? 'subscription', $data['billing_period'] ?? null, (int) ($data['subscription_term_months'] ?? 1), $data['due_date'] ?? null]);
+        $stmt = $this->db->prepare('INSERT INTO hekta_invoices (id, app_id, tenant_id, amount, currency, status, gateway, environment, metadata, invoice_type, billing_period, subscription_term_months, due_date) VALUES (?, ?, ?, ?, ?, "pending", ?, ?, ?, ?, ?, ?, ?)');
+        $stmt->execute([$invoiceId, $appId, $tenantId, $amount, $currency, $gateway, $environment, $metadata, $data['invoice_type'] ?? 'subscription', $data['billing_period'] ?? null, (int) ($data['subscription_term_months'] ?? 1), $data['due_date'] ?? null]);
 
-        $driver = $this->driver($gateway, (string) ($data['environment'] ?? getenv('APP_ENV') ?: 'testing'));
+        $driver = $this->driver($gateway, $environment);
         try {
-            $environment = (string) ($data['environment'] ?? getenv('APP_ENV') ?: 'testing');
-            $prefix = $this->isProductionEnvironment($environment) ? 'PROD' : 'TEST';
+            $prefix = $environment === 'prod' ? 'PROD' : 'TEST';
             $order = $driver->createOrder([
                 'invoice_id' => $invoiceId,
                 'amount' => $amount,
@@ -60,7 +62,7 @@ final class PaymentOrchestrator
             throw new RuntimeException('Invoice not found.');
         }
         if ($invoice['status'] === 'initiated' && !empty($invoice['gateway_order_id'])) {
-            $driver = $this->driver($invoice['gateway'], getenv('APP_ENV') ?: 'testing');
+            $driver = $this->driver($invoice['gateway'], (string) $invoice['environment']);
             $gatewayStatus = $driver->checkStatus($invoice['gateway_order_id']);
             $mapped = $driver->mapStatus($gatewayStatus['status']);
             if ($mapped !== 'pending') {
@@ -114,7 +116,7 @@ final class PaymentOrchestrator
         if (!$invoice) {
             throw new RuntimeException('Invoice not found for gateway order.');
         }
-        $driver = $this->driver($gateway, getenv('APP_ENV') ?: 'testing');
+        $driver = $this->driver($gateway, (string) $invoice['environment']);
         $gatewayStatus = $driver->checkStatus($orderId);
         $status = $driver->mapStatus($gatewayStatus['status']);
         $this->completeStatus($invoice, $status, $gatewayStatus);
@@ -149,13 +151,14 @@ final class PaymentOrchestrator
         if (!in_array($invoice['status'], ['pending', 'initiated'], true)) {
             throw new RuntimeException('Only pending or initiated invoices can be paid.');
         }
-        $driver = $this->driver($invoice['gateway'], getenv('APP_ENV') ?: 'testing');
+        $driver = $this->driver($invoice['gateway'], (string) $invoice['environment']);
+        $prefix = (string) $invoice['environment'] === 'prod' ? 'PROD' : 'TEST';
         $order = $driver->createOrder([
             'invoice_id' => $invoice['id'],
             'amount' => (float) $invoice['amount'],
             'currency' => $invoice['currency'],
             'description' => 'Invoice payment',
-            'callback_url' => getenv('PESAPAL_CALLBACK_URL') ?: 'https://pay.sebuleni.com/payment-callback',
+            'callback_url' => getenv('PESAPAL_CALLBACK_URL_' . $prefix) ?: getenv('PESAPAL_CALLBACK_URL') ?: 'https://pay.sebuleni.com/payment-callback',
             'customer_email' => null,
             'billing_address' => null,
         ]);
@@ -206,7 +209,8 @@ final class PaymentOrchestrator
         if ($gateway !== 'pesapal') {
             throw new RuntimeException('Unsupported gateway: ' . $gateway);
         }
-        $prefix = $this->isProductionEnvironment($environment) ? 'PROD' : 'TEST';
+        $environment = $this->normalizeEnvironment($environment);
+        $prefix = $environment === 'prod' ? 'PROD' : 'TEST';
         $consumerKey = getenv('PESAPAL_CONSUMER_KEY_' . $prefix) ?: getenv('PESAPAL_CONSUMER_KEY') ?: '';
         $consumerSecret = getenv('PESAPAL_CONSUMER_SECRET_' . $prefix) ?: getenv('PESAPAL_CONSUMER_SECRET') ?: '';
         $baseUrl = $this->normalizePesapalBaseUrl(getenv('PESAPAL_BASE_URL_' . $prefix) ?: ($prefix === 'PROD' ? 'https://pay.pesapal.com/v3' : 'https://cybqa.pesapal.com/pesapalv3/api/'));
@@ -215,9 +219,13 @@ final class PaymentOrchestrator
         return new PesapalDriver($baseUrl, $consumerKey, $consumerSecret, $ipnId);
     }
 
-    private function isProductionEnvironment(string $environment): bool
+    private function normalizeEnvironment(string $environment): string
     {
-        return in_array(strtolower(trim($environment)), ['production', 'prod', 'live'], true);
+        return match (strtolower(trim($environment))) {
+            'test', 'testing', 'sandbox' => 'test',
+            'prod', 'production', 'live' => 'prod',
+            default => throw new RuntimeException('Payment environment must be test or prod.'),
+        };
     }
 
     private function normalizePesapalBaseUrl(string $baseUrl): string
