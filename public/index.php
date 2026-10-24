@@ -29,6 +29,9 @@ if ($autoload === null) {
 require_once $autoload;
 
 use HektaPay\Database\Connection;
+use HektaPay\GooglePlay\GooglePlayException;
+use HektaPay\GooglePlay\GooglePlayFactory;
+use HektaPay\GooglePlay\ServiceAccountAuth;
 use HektaPay\Payment\PaymentOrchestrator;
 use HektaPay\Services\WebhookDispatcher;
 
@@ -60,16 +63,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && $path === 'health') {
         'success' => true,
         'service' => 'hekta-pay',
         'environment' => getenv('APP_ENV') ?: 'production',
+        'google_play' => [
+            'service_account_loaded' => ServiceAccountAuth::isConfigured(),
+            'token_key_configured' => strlen((string) (getenv('GOOGLE_PLAY_TOKEN_KEY') ?: '')) >= 16,
+            'rtdn_configured' => (getenv('GOOGLE_PLAY_RTDN_AUDIENCE') ?: '') !== '' && (getenv('GOOGLE_PLAY_RTDN_SERVICE_ACCOUNT') ?: '') !== '',
+        ],
     ]);
 }
 
 try {
     $db = Connection::create();
     $orchestrator = new PaymentOrchestrator($db, new WebhookDispatcher($db));
-    $input = json_decode(file_get_contents('php://input') ?: '{}', true) ?: [];
+    $rawBody = file_get_contents('php://input') ?: '';
+    $input = json_decode($rawBody !== '' ? $rawBody : '{}', true) ?: [];
     $appId = (string) ($_SERVER['HTTP_X_APP_ID'] ?? '');
     $secret = (string) ($_SERVER['HTTP_X_APP_SECRET'] ?? '');
 
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && $path === 'api/google-play/rtdn') {
+        // Pub/Sub pushes carry a Google-signed bearer token instead of app credentials.
+        $rtdn = GooglePlayFactory::rtdn($db, $orchestrator->googlePlay());
+        $authorization = (string) ($_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '');
+        $result = $rtdn->handle($authorization, $rawBody);
+        respond($result['body'], $result['status']);
+    }
     if (preg_match('#^api/ipn/([^/]+)$#', $path, $matches)) {
         respond($orchestrator->processIpn($matches[1], $input));
     }
@@ -93,6 +109,9 @@ try {
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && preg_match('#^(?:api/v1/)?api/payment/([^/]+)/initialize$#', $path, $matches)) {
         respond($orchestrator->initializeExisting($appId, $matches[1]));
     }
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && preg_match('#^(?:api/v1/)?api/payment/([^/]+)/google-play/verify$#', $path, $matches)) {
+        respond($orchestrator->verifyGooglePlayPurchase($appId, $matches[1], $input));
+    }
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && preg_match('#^(?:api/v1/)?api/payment/([^/]+)/cancel$#', $path, $matches)) {
         respond($orchestrator->cancelInvoice($appId, $matches[1]));
     }
@@ -106,6 +125,9 @@ try {
         respond($orchestrator->listTransactions($appId, (string) ($_GET['tenant_id'] ?? ''), (int) ($_GET['limit'] ?? 50), (int) ($_GET['offset'] ?? 0)));
     }
     respond(['success' => false, 'error' => ['code' => 'NOT_FOUND', 'message' => 'Route not found.']], 404);
+} catch (GooglePlayException $error) {
+    error_log('[hekta-pay] google-play ' . $error->errorCode() . ': ' . $error->getMessage());
+    respond(['success' => false, 'error' => ['code' => $error->errorCode(), 'message' => $error->getMessage()]], $error->httpStatus());
 } catch (Throwable $error) {
     error_log('[hekta-pay] ' . $error->getMessage());
     respond(['success' => false, 'error' => ['code' => 'PAYMENT_ERROR', 'message' => $error->getMessage()]], 500);

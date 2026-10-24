@@ -5,13 +5,32 @@ declare(strict_types=1);
 namespace HektaPay\Payment;
 
 use HektaPay\Drivers\PesapalDriver;
+use HektaPay\GooglePlay\GooglePlayFactory;
+use HektaPay\GooglePlay\GooglePlayService;
+use HektaPay\GooglePlay\InvoiceLifecycle;
+use HektaPay\GooglePlay\PlayProductCatalog;
 use HektaPay\Services\WebhookDispatcher;
 use PDO;
 use RuntimeException;
 
-final class PaymentOrchestrator
+final class PaymentOrchestrator implements InvoiceLifecycle
 {
+    private ?GooglePlayService $googlePlay = null;
+
     public function __construct(private PDO $db, private WebhookDispatcher $webhooks) {}
+
+    public function useGooglePlay(GooglePlayService $googlePlay): void
+    {
+        $this->googlePlay = $googlePlay;
+    }
+
+    public function googlePlay(): GooglePlayService
+    {
+        if ($this->googlePlay === null) {
+            $this->googlePlay = GooglePlayFactory::service($this->db, $this);
+        }
+        return $this->googlePlay;
+    }
 
     public function initialize(string $appId, array $data): array
     {
@@ -22,6 +41,10 @@ final class PaymentOrchestrator
         $environment = $this->normalizeEnvironment(
             (string) ($data['environment'] ?? getenv('APP_ENV') ?: 'test')
         );
+        $this->assertGatewayAllowed($appId, $gateway);
+        if ($gateway === 'google_play') {
+            return $this->initializeGooglePlay($appId, $tenantId, $environment, $data);
+        }
         if ($tenantId === '' || $amount <= 0 || !preg_match('/^[A-Z]{3}$/', $currency)) {
             throw new RuntimeException('tenant_id, a positive amount, and a valid currency are required.');
         }
@@ -61,7 +84,7 @@ final class PaymentOrchestrator
         if (!$invoice) {
             throw new RuntimeException('Invoice not found.');
         }
-        if ($invoice['status'] === 'initiated' && !empty($invoice['gateway_order_id'])) {
+        if ($invoice['status'] === 'initiated' && !empty($invoice['gateway_order_id']) && $invoice['gateway'] !== 'google_play') {
             $driver = $this->driver($invoice['gateway'], (string) $invoice['environment']);
             $gatewayStatus = $driver->checkStatus($invoice['gateway_order_id']);
             $mapped = $driver->mapStatus($gatewayStatus['status']);
@@ -151,6 +174,9 @@ final class PaymentOrchestrator
         if (!in_array($invoice['status'], ['pending', 'initiated'], true)) {
             throw new RuntimeException('Only pending or initiated invoices can be paid.');
         }
+        if ($invoice['gateway'] === 'google_play') {
+            throw new RuntimeException('Google Play invoices are paid inside the Google Play purchase flow.');
+        }
         $driver = $this->driver($invoice['gateway'], (string) $invoice['environment']);
         $prefix = (string) $invoice['environment'] === 'prod' ? 'PROD' : 'TEST';
         $order = $driver->createOrder([
@@ -180,14 +206,14 @@ final class PaymentOrchestrator
         return ['success' => true, 'invoice' => $this->findInvoice($appId, $invoiceId)];
     }
 
-    private function completeStatus(array $invoice, string $status, array $gatewayStatus): void
+    private function completeStatus(array $invoice, string $status, array $gatewayStatus): ?array
     {
-        if ($invoice['status'] === $status || in_array($invoice['status'], ['completed', 'failed', 'cancelled'], true)) {
-            return;
+        if ($invoice['status'] === $status || in_array($invoice['status'], ['completed', 'failed', 'cancelled', 'refunded'], true)) {
+            return null;
         }
         $this->db->beginTransaction();
         try {
-            $this->db->prepare('UPDATE hekta_invoices SET status = ?, payment_method = ?, completed_at = CASE WHEN ? = "completed" THEN NOW() ELSE completed_at END WHERE id = ? AND status NOT IN ("completed", "failed", "cancelled")')->execute([$status, $gatewayStatus['payment_method'] ?? null, $status, $invoice['id']]);
+            $this->db->prepare('UPDATE hekta_invoices SET status = ?, payment_method = ?, completed_at = CASE WHEN ? = "completed" THEN NOW() ELSE completed_at END WHERE id = ? AND status NOT IN ("completed", "failed", "cancelled", "refunded")')->execute([$status, $gatewayStatus['payment_method'] ?? null, $status, $invoice['id']]);
             if ($status === 'completed') {
                 $this->db->prepare('INSERT IGNORE INTO hekta_transactions (id, invoice_id, app_id, tenant_id, amount, currency, gateway, gateway_transaction_id, payment_method, metadata, transaction_data) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')->execute([self::uuid(), $invoice['id'], $invoice['app_id'], $invoice['tenant_id'], $invoice['amount'], $invoice['currency'], $invoice['gateway'], $gatewayStatus['transaction_id'] ?? $invoice['gateway_order_id'], $gatewayStatus['payment_method'] ?? 'unknown', $invoice['metadata'], json_encode($gatewayStatus['raw'] ?? $gatewayStatus)]);
             }
@@ -197,11 +223,110 @@ final class PaymentOrchestrator
             throw $error;
         }
         if ($status === 'completed' || $status === 'failed' || $status === 'cancelled') {
-            $credential = $this->credential($invoice['app_id']);
-            if ($credential && !empty($credential['webhook_url']) && !empty($credential['webhook_secret'])) {
-                $this->webhooks->dispatch($this->findInvoice($invoice['app_id'], $invoice['id']), $credential, 'payment.' . $status);
-            }
+            return $this->dispatchInvoiceEvent($invoice, 'payment.' . $status);
         }
+        return null;
+    }
+
+    public function dispatchInvoiceEvent(array $invoice, string $event): ?array
+    {
+        $credential = $this->credential($invoice['app_id']);
+        $fresh = $this->findInvoice($invoice['app_id'], $invoice['id']);
+        if ($fresh && $credential && !empty($credential['webhook_url']) && !empty($credential['webhook_secret'])) {
+            return $this->webhooks->dispatch($fresh, $credential, $event);
+        }
+        return null;
+    }
+
+    public function completeExternalInvoice(array $invoice, array $gatewayStatus): ?array
+    {
+        $orderId = (string) ($gatewayStatus['transaction_id'] ?? '');
+        if ($orderId !== '') {
+            $this->db->prepare('UPDATE hekta_invoices SET gateway_order_id = ? WHERE id = ? AND gateway_order_id IS NULL')->execute([$orderId, $invoice['id']]);
+            $invoice = $this->findInvoice($invoice['app_id'], $invoice['id']) ?? $invoice;
+        }
+        return $this->completeStatus($invoice, 'completed', $gatewayStatus);
+    }
+
+    public function refundExternalInvoice(array $invoice): ?array
+    {
+        $stmt = $this->db->prepare('UPDATE hekta_invoices SET status = "refunded", refunded_at = NOW() WHERE id = ? AND status = "completed"');
+        $stmt->execute([$invoice['id']]);
+        if ($stmt->rowCount() === 0) {
+            return null;
+        }
+        return $this->dispatchInvoiceEvent($invoice, 'payment.refunded');
+    }
+
+    public function verifyGooglePlayPurchase(string $appId, string $invoiceId, array $input): array
+    {
+        $invoice = $this->findInvoice($appId, $invoiceId);
+        if (!$invoice) {
+            throw new RuntimeException('Invoice not found.');
+        }
+        $result = $this->googlePlay()->verifyPurchase($invoice, (string) ($input['purchase_token'] ?? ''), (string) ($input['product_id'] ?? ''));
+        $result['invoice'] = $this->findInvoice($appId, $invoiceId);
+        return $result;
+    }
+
+    private function assertGatewayAllowed(string $appId, string $gateway): void
+    {
+        $credential = $this->credential($appId);
+        $allowed = $credential && !empty($credential['allowed_gateways']) ? json_decode((string) $credential['allowed_gateways'], true) : null;
+        if (!is_array($allowed)) {
+            $allowed = ['pesapal'];
+        }
+        if (!in_array($gateway, $allowed, true)) {
+            throw new RuntimeException('Gateway is not enabled for this app: ' . $gateway);
+        }
+    }
+
+    private function initializeGooglePlay(string $appId, string $tenantId, string $environment, array $data): array
+    {
+        if ($tenantId === '') {
+            throw new RuntimeException('tenant_id is required.');
+        }
+        $invoiceType = (string) ($data['invoice_type'] ?? 'upgrade');
+        if (!in_array($invoiceType, ['subscription', 'upgrade', 'renewal'], true)) {
+            throw new RuntimeException('invoice_type must be subscription, upgrade, or renewal.');
+        }
+        $metadata = is_array($data['metadata'] ?? null) ? $data['metadata'] : [];
+        $productId = trim((string) ($metadata['product_id'] ?? ''));
+        if ($productId === '') {
+            throw new RuntimeException('metadata.product_id is required for Google Play payments.');
+        }
+        $product = (new PlayProductCatalog($this->db))->find($appId, $productId);
+        if (!$product) {
+            throw new RuntimeException('Unknown Google Play product.');
+        }
+        // The catalog, not the client, decides what a product grants.
+        $metadata['product_id'] = $productId;
+        $metadata['plan_id'] = (string) $product['plan_id'];
+        if (isset($metadata['business_data']) && is_array($metadata['business_data'])) {
+            $metadata['business_data']['plan_type'] = (string) $product['plan_id'];
+            $metadata['business_data']['subscription_term_months'] = (int) $product['term_months'];
+        }
+        $metadata['invoice_type'] = $invoiceType;
+
+        $invoiceId = self::uuid();
+        $this->db->prepare('INSERT INTO hekta_invoices (id, app_id, tenant_id, amount, currency, status, gateway, environment, metadata, invoice_type, billing_period, subscription_term_months) VALUES (?, ?, ?, ?, ?, "initiated", "google_play", ?, ?, ?, ?, ?)')->execute([
+            $invoiceId,
+            $appId,
+            $tenantId,
+            $product['amount'],
+            $product['currency'],
+            $environment,
+            json_encode($metadata, JSON_THROW_ON_ERROR),
+            $invoiceType,
+            $product['billing_period'],
+            (int) $product['term_months'],
+        ]);
+
+        return [
+            'success' => true,
+            'invoice' => $this->findInvoice($appId, $invoiceId),
+            'payment' => ['url' => null, 'order_tracking_id' => null, 'product_id' => $productId],
+        ];
     }
 
     private function driver(string $gateway, string $environment): PaymentDriverInterface
@@ -276,7 +401,7 @@ final class PaymentOrchestrator
         ];
     }
 
-    private function findInvoice(string $appId, string $invoiceId): ?array
+    public function findInvoice(string $appId, string $invoiceId): ?array
     {
         $stmt = $this->db->prepare('SELECT * FROM hekta_invoices WHERE app_id = ? AND id = ? LIMIT 1');
         $stmt->execute([$appId, $invoiceId]);

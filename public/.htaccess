@@ -1,5 +1,9 @@
 RewriteEngine On
 
+# Pass the Pub/Sub bearer token through to PHP.
+
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
 # Never serve runtime configuration or hidden files.
 
 RewriteRule ^\.env(?:\.|$) - [F,L]

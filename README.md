@@ -27,6 +27,10 @@ Failed webhook deliveries are stored in `hekta_webhook_retry_queue`. Run the wor
 
 The worker retries transport errors and non-2xx responses with bounded exponential backoff. Keep the PHP process configured with the same environment file used by the web application.
 
+### Google Play Billing
+
+The `google_play` gateway verifies Play purchases server-side (`POST /api/payment/{invoice}/google-play/verify`), receives refund notifications (`POST /api/google-play/rtdn`), and is enabled per app with `php bin/allow_gateway.php <app_id> google_play`. Setup, cron jobs, and tests are in `NafDex/lib/docs/Implementations/1_4_9/playBilling/PLAY_BILLING_TESTING_AND_SETUP_GUIDE.md`. Run the tests with `php tests/run.php`.
+
 ## Automatic deployment
 
 The workflow at `.github/workflows/deploy.yml` deploys `main` to `https://pay.sebuleni.com` through GitHub Actions and FTP.

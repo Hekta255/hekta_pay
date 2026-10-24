@@ -29,6 +29,9 @@ final class WebhookDispatcher
             'currency' => $invoice['currency'],
             'gateway' => $invoice['gateway'],
             'payment_method' => $invoice['payment_method'],
+            'invoice_type' => $invoice['invoice_type'] ?? null,
+            'billing_period' => $invoice['billing_period'] ?? null,
+            'subscription_term_months' => isset($invoice['subscription_term_months']) ? (int) $invoice['subscription_term_months'] : null,
             'metadata' => $invoice['metadata'] ? json_decode($invoice['metadata'], true) : null,
             'timestamp' => gmdate('c'),
         ];
