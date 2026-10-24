@@ -64,8 +64,8 @@ CREATE TABLE IF NOT EXISTS hekta_google_play_events (
 
 INSERT INTO hekta_google_play_products (app_id, package_name, product_id, plan_id, term_months, billing_period, amount, currency)
 VALUES
-    ('com.hekta.nafdex', 'com.sebuleni.nafdex', 'nafdex_shop_monthly', 'essential', 1, 'monthly', 1.9900, 'USD'),
-    ('com.hekta.nafdex', 'com.sebuleni.nafdex', 'nafdex_shop_annual', 'essential', 12, 'yearly', 19.9000, 'USD')
+    ('com.sebuleni.nafdex', 'com.sebuleni.nafdex', 'nafdex_shop_monthly', 'essential', 1, 'monthly', 1.9900, 'USD'),
+    ('com.sebuleni.nafdex', 'com.sebuleni.nafdex', 'nafdex_shop_annual', 'essential', 12, 'yearly', 19.9000, 'USD')
 ON DUPLICATE KEY UPDATE
     package_name = VALUES(package_name),
     plan_id = VALUES(plan_id),
@@ -73,6 +73,10 @@ ON DUPLICATE KEY UPDATE
     billing_period = VALUES(billing_period),
     amount = VALUES(amount),
     currency = VALUES(currency);
+
+DELETE FROM hekta_google_play_products
+WHERE app_id = 'com.hekta.nafdex'
+    AND package_name = 'com.sebuleni.nafdex';
 
 -- ROLLBACK:
 -- DROP TABLE IF EXISTS hekta_google_play_events;

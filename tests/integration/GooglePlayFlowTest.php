@@ -103,7 +103,7 @@ final class FlowContext
         return $stmt->fetchAll();
     }
 
-    public function newInvoice(string $productId = 'nafdex_shop_monthly', string $environment = 'test', string $business = 'biz-1', string $invoiceType = 'upgrade', string $appId = 'com.hekta.nafdex'): array
+    public function newInvoice(string $productId = 'nafdex_shop_monthly', string $environment = 'test', string $business = 'biz-1', string $invoiceType = 'upgrade', string $appId = 'com.sebuleni.nafdex'): array
     {
         $response = $this->orchestrator->initialize($appId, [
             'tenant_id' => $business,
@@ -210,7 +210,7 @@ function flow_context(): ?FlowContext
     $hash = password_hash('app-secret', PASSWORD_DEFAULT);
     $insert = $ctx->db->prepare('INSERT INTO hekta_app_credentials (app_id, app_secret_hash, app_name, owner_email, allowed_gateways, webhook_url, webhook_secret) VALUES (?, ?, ?, ?, ?, ?, ?)');
     $webhookUrl = 'http://127.0.0.1:' . $ctx->port . '/webhook';
-    $insert->execute(['com.hekta.nafdex', $hash, 'NafDex', 'ops@example.com', json_encode(['pesapal', 'google_play']), $webhookUrl, 'whsec_test']);
+    $insert->execute(['com.sebuleni.nafdex', $hash, 'NafDex', 'ops@example.com', json_encode(['pesapal', 'google_play']), $webhookUrl, 'whsec_test']);
     $insert->execute(['com.pesapal.only', $hash, 'Legacy', 'ops@example.com', null, $webhookUrl, 'whsec_test']);
 
     $ctx->keys = test_rsa_key();
@@ -252,8 +252,12 @@ function flow_test(string $name, callable $fn): void
 }
 
 flow_test('migrations seed the NafDex catalog and populate allowed gateways', function (FlowContext $ctx): void {
-    $products = $ctx->q('SELECT product_id, term_months, amount, plan_id, package_name FROM hekta_google_play_products ORDER BY term_months');
+    $ctx->db->exec("INSERT INTO hekta_google_play_products (app_id, package_name, product_id, plan_id, term_months, billing_period, amount, currency) VALUES ('com.hekta.nafdex', 'com.sebuleni.nafdex', 'stale_test_row', 'essential', 1, 'monthly', 1.9900, 'USD')");
+    $ctx->db->exec((string) file_get_contents(__DIR__ . '/../../database/migrations/20261101_hekta_pay_google_play_tables.sql'));
+    $products = $ctx->q('SELECT app_id, product_id, term_months, amount, plan_id, package_name FROM hekta_google_play_products ORDER BY term_months');
     T::same(2, count($products));
+    T::same('com.sebuleni.nafdex', $products[0]['app_id']);
+    T::same(0, (int) $ctx->db->query("SELECT COUNT(*) FROM hekta_google_play_products WHERE app_id = 'com.hekta.nafdex'")->fetchColumn());
     T::same('nafdex_shop_monthly', $products[0]['product_id']);
     T::same('nafdex_shop_annual', $products[1]['product_id']);
     T::same('com.sebuleni.nafdex', $products[0]['package_name']);
@@ -265,7 +269,7 @@ flow_test('migrations seed the NafDex catalog and populate allowed gateways', fu
 
 flow_test('initialize enforces allowed gateways for every gateway', function (FlowContext $ctx): void {
     T::throws(RuntimeException::class, fn() => $ctx->newInvoice('nafdex_shop_monthly', 'test', 'biz-1', 'upgrade', 'com.pesapal.only'));
-    $error = T::throws(RuntimeException::class, fn() => $ctx->orchestrator->initialize('com.hekta.nafdex', ['tenant_id' => 'b', 'amount' => 1, 'gateway' => 'stripe']));
+    $error = T::throws(RuntimeException::class, fn() => $ctx->orchestrator->initialize('com.sebuleni.nafdex', ['tenant_id' => 'b', 'amount' => 1, 'gateway' => 'stripe']));
     T::true(strpos($error->getMessage(), 'not enabled') !== false);
 });
 
@@ -285,8 +289,8 @@ flow_test('initialize takes amount, term, and plan from the catalog instead of t
 });
 
 flow_test('initialize rejects missing, unknown products and invalid invoice types', function (FlowContext $ctx): void {
-    T::throws(RuntimeException::class, fn() => $ctx->orchestrator->initialize('com.hekta.nafdex', ['tenant_id' => 'b', 'gateway' => 'google_play', 'metadata' => []]));
-    T::throws(RuntimeException::class, fn() => $ctx->orchestrator->initialize('com.hekta.nafdex', ['tenant_id' => 'b', 'gateway' => 'google_play', 'metadata' => ['product_id' => 'nope']]));
+    T::throws(RuntimeException::class, fn() => $ctx->orchestrator->initialize('com.sebuleni.nafdex', ['tenant_id' => 'b', 'gateway' => 'google_play', 'metadata' => []]));
+    T::throws(RuntimeException::class, fn() => $ctx->orchestrator->initialize('com.sebuleni.nafdex', ['tenant_id' => 'b', 'gateway' => 'google_play', 'metadata' => ['product_id' => 'nope']]));
     T::throws(RuntimeException::class, fn() => $ctx->newInvoice('nafdex_shop_monthly', 'test', 'b', 'one_time'));
 });
 
@@ -397,12 +401,12 @@ flow_test('pending purchases grant nothing and can complete later', function (Fl
 
 flow_test('cancelled invoices cannot be paid and google invoices are not paid through pesapal', function (FlowContext $ctx): void {
     $invoice = $ctx->newInvoice('nafdex_shop_monthly', 'test', 'biz-cancel');
-    $ctx->orchestrator->cancelInvoice('com.hekta.nafdex', $invoice['id']);
+    $ctx->orchestrator->cancelInvoice('com.sebuleni.nafdex', $invoice['id']);
     $token = $ctx->playPurchase($invoice);
     T::throws(GooglePlayException::class, fn() => $ctx->verify($ctx->invoice($invoice['id']), $token), 'INVOICE_NOT_PAYABLE');
     $fresh = $ctx->newInvoice('nafdex_shop_monthly', 'test', 'biz-cancel-2');
-    T::throws(RuntimeException::class, fn() => $ctx->orchestrator->initializeExisting('com.hekta.nafdex', $fresh['id']));
-    T::same('initiated', $ctx->orchestrator->status('com.hekta.nafdex', $fresh['id'])['invoice']['status']);
+    T::throws(RuntimeException::class, fn() => $ctx->orchestrator->initializeExisting('com.sebuleni.nafdex', $fresh['id']));
+    T::same('initiated', $ctx->orchestrator->status('com.sebuleni.nafdex', $fresh['id'])['invoice']['status']);
 });
 
 flow_test('verification attempts are rate limited per invoice after repeated failures', function (FlowContext $ctx): void {

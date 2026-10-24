@@ -162,7 +162,7 @@ if (!isset($_SESSION['authenticated'])) {
 $results = [];
 $invoiceId = trim((string) ($_POST['invoice_id'] ?? ''));
 $baseUrl = ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https://' : 'http://') . ($_SERVER['HTTP_HOST'] ?? 'localhost');
-$appId = (string) (getenv('TEST_APP_ID') ?: 'com.hekta.nafdex');
+$appId = (string) (getenv('TEST_APP_ID') ?: 'com.sebuleni.nafdex');
 $appSecret = (string) (getenv('TEST_APP_SECRET') ?: '');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['run_safe_tests'])) {

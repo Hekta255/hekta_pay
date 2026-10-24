@@ -81,7 +81,7 @@ PESAPAL_IPN_ID_TEST=YOUR_SANDBOX_REGISTERED_IPN_ID
 PESAPAL_CALLBACK_URL=https://pay.sebuleni.com/payment-callback
 
 HEKTA_PAY_TEST_UI_PASSWORD=YOUR_STRONG_TEST_UI_PASSWORD
-TEST_APP_ID=com.hekta.nafdex
+TEST_APP_ID=com.sebuleni.nafdex
 TEST_APP_SECRET=YOUR_NAFDEX_HEKTA_PAY_APP_SECRET
 TEST_CUSTOMER_EMAIL=your-test-email@example.com
 ```
@@ -111,7 +111,7 @@ https://pay.sebuleni.com/remote_test.php
 It returns `404` unless the server has `HEKTA_PAY_TEST_UI_PASSWORD` configured. Set these values server-side only:
 
 - `HEKTA_PAY_TEST_UI_PASSWORD`: strong password for the browser test page.
-- `TEST_APP_ID`: normally `com.hekta.nafdex`.
+- `TEST_APP_ID`: normally `com.sebuleni.nafdex`.
 - `TEST_APP_SECRET`: NafDex Hekta Pay app secret used by authenticated checks.
 - `TEST_CUSTOMER_EMAIL`: optional sandbox customer email.
 - `TEST_GATEWAY_ENVIRONMENT`: use `testing` for the sandbox button; defaults to `testing`.
