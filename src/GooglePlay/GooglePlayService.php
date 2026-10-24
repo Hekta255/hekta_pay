@@ -109,11 +109,18 @@ final class GooglePlayService
         }
 
         $fresh = $this->lifecycle->findInvoice((string) $invoice['app_id'], (string) $invoice['id']) ?? $invoice;
+        $entitlementApplied = ($fresh['status'] ?? '') === 'completed'
+            && $this->webhookDelivered((string) $invoice['id'], 'payment.completed');
         $consumed = false;
-        if (($fresh['status'] ?? '') === 'completed') {
+        if ($entitlementApplied) {
             $consumed = $this->finalize($existing, $fresh);
         }
-        return ['success' => true, 'status' => (string) ($fresh['status'] ?? $status), 'consumed' => $consumed];
+        return [
+            'success' => $entitlementApplied,
+            'status' => $entitlementApplied ? 'completed' : 'pending',
+            'entitlement_applied' => $entitlementApplied,
+            'consumed' => $consumed,
+        ];
     }
 
     /**

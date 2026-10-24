@@ -423,7 +423,9 @@ flow_test('a failing NafDex webhook leaves the purchase unconsumed until deliver
     $token = $ctx->playPurchase($invoice);
     $ctx->setWebhookMode('fail');
     $result = $ctx->verify($invoice, $token);
-    T::same('completed', $result['status']);
+    T::same(false, $result['success']);
+    T::same('pending', $result['status']);
+    T::same(false, $result['entitlement_applied']);
     T::same(false, $result['consumed']);
     T::same(null, $ctx->purchaseRow($token)['consumed_at']);
     T::same([], array_intersect($ctx->google->consumed, [$token]));
@@ -437,8 +439,11 @@ flow_test('a failing NafDex webhook leaves the purchase unconsumed until deliver
     $ctx->db->exec('UPDATE hekta_webhook_retry_queue SET next_attempt_at = DATE_SUB(NOW(), INTERVAL 1 MINUTE)');
     $retry = (new WebhookDispatcher($ctx->db))->processRetries(50);
     T::true($retry['succeeded'] >= 1);
-    $sweep = $ctx->service->sweep(50);
-    T::true($sweep['consumed'] >= 1);
+    $verifiedAgain = $ctx->verify($ctx->invoice($invoice['id']), $token);
+    T::same(true, $verifiedAgain['success']);
+    T::same('completed', $verifiedAgain['status']);
+    T::same(true, $verifiedAgain['entitlement_applied']);
+    T::same(true, $verifiedAgain['consumed']);
     T::true($ctx->purchaseRow($token)['consumed_at'] !== null);
     T::same(1, count(array_keys($ctx->google->consumed, $token, true)));
 });
